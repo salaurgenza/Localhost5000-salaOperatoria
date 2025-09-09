@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestione Sale Operatorie — Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root { --grid: #e9ecef; }
+    body { background: #f8f9fa; }
+    .time-cell { width: 70px; font-weight: 600; background: #fdfdfd; }
+    .slot { position: relative; height: 40px; }
+    .case-block {
+      position: absolute; inset: 2px; border-radius: .5rem;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; cursor: pointer; text-align:center; padding: .25rem;
+    }
+    .case-cont { border: 1px dashed rgba(0,0,0,.2); background: rgba(0,0,0,.03); }
+    .case-sala1 { background: rgba(13,110,253,.15); border: 1px solid rgba(13,110,253,.4); color: #0b3a59; }
+    .case-sala2 { background: rgba(220,53,69,.15); border: 1px solid rgba(220,53,69,.4); color: #721c24; }
+    .case-sala3 { background: rgba(255,193,7,.15); border: 1px solid rgba(255,193,7,.4); color: #856404; }
+    .case-sala4 { background: rgba(40,167,69,.15); border: 1px solid rgba(40,167,69,.4); color: #155724; }
+    .case-sala5 { background: rgba(111,66,193,.15); border: 1px solid rgba(111,66,193,.4); color: #3d1769; }
+    .table-sticky thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
+    .kpi-card { text-align: center; }
+    .kpi-value { font-size: 1.6rem; font-weight: 700; }
+    .person-icon { font-size: 1.1rem; margin-right: .3rem; }
+    .offcanvas-footer { background: #f8f9fa; }
+    footer { padding: 1rem 0; color: #6c757d; }
+  
+.case-block {
+  border-radius: .5rem;
+  padding: .5rem;
+  background: #0d6efd22;
+  border: 1px solid #0d6efd55;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 40px;
+}
+
+</style>
+</head>
+<body>
+    <!-- NAVBAR-->
+
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid d-flex justify-content-between">
+            <!--button-- class="btn btn-primary rounded-circle"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#surgeryFormCard">
+              ＋
+            </!--button-->
+            
+            <span class="navbar-brand mx-auto">Gestione Sale Operatorie · Dashboard</span>
+            <span class="text-white-50">
+                <button class="btn btn-sm btn-light me-2" id="prevDay">◀</button>
+                Giornata: <span id="dayLabel"></span>
+                <button class="btn btn-sm btn-light ms-2" id="nextDay">▶</button>
+            </span>
+
+        </div>
+    </nav>
+
+
+
+    <div class="container-fluid py-3">
+        <!-- KPI CARDS -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-3"><div class="card kpi-card shadow-sm"><div class="card-body"><h6>Sale Occupate</h6><div class="kpi-value" id="kpiSale">0/5</div></div></div></div>
+            <div class="col-md-3"><div class="card kpi-card shadow-sm"><div class="card-body"><h6>Pazienti Oggi</h6><div class="kpi-value" id="kpiPazienti">0</div></div></div></div>
+            <div class="col-md-3"><div class="card kpi-card shadow-sm"><div class="card-body"><h6>Interventi Completati</h6><div class="kpi-value" id="kpiCompletati">0</div></div></div></div>
+            <div class="col-md-3"><div class="card kpi-card shadow-sm"><div class="card-body"><h6>In Ritardo</h6><div class="kpi-value text-danger" id="kpiRitardo">0</div></div></div></div>
+        </div>
+
+        <div class="row g-3">
+            <!-- PLANNER -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Planning Orario — 08:00 → 20:00</h5>
+                        <div class="table-responsive table-sticky">
+                            <table class="table table-sm align-middle mb-0" id="scheduleTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Orario</th>
+                                        <th data-sala="1">S 1 · Ortopedia</th>
+                                        <th data-sala="2">S 2 · Cardioch.</th>
+                                        <th data-sala="3">S 3 · Neuroch.</th>
+                                        <th data-sala="4">S 4 · Chir. Gen.</th>
+                                        <th data-sala="5">S 5 · Urol.</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scheduleBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM + ASSEGNAZIONI -->
+
+            <div class="col-lg-4">
+                <!-- LISTA PAZIENTI FIFO -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">Lista Pazienti</h5>
+                            <button class="btn btn-primary rounded-circle"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#surgeryFormCard"
+                                    aria-expanded="false"
+                                    aria-controls="surgeryFormCard">
+                                ＋
+                            </button>
+                        </div>
+                        <ul id="patientQueue" class="list-group list-group-flush"></ul>
+                    </div>
+                </div>
+
+                <!-- FORM completo, reso collassabile -->
+                <div class="collapse" id="surgeryFormCard">
+
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <h5 class="card-title mb-0">Nuovo Intervento</h5>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="clearAll">Svuota giornata</button>
+                            </div>
+                            <hr>
+                            <form id="surgeryForm" class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="patientFirstName">Nome Paziente</label>
+                                    <input id="patientFirstName" class="form-control" required />
+                                    <label class="form-label" for="patientLastName">Cognome Paziente</label>
+                                    <input id="patientLastName" class="form-control" required />
+                                    <label class="form-label" for="patientDOB">Data di nascita</label>
+                                    <input id="patientDOB" type="date" class="form-control" required />
+                                    <label class="form-label" for="patientCode">Codice Sanitario</label>
+                                    <input id="patientCode" class="form-control" required />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="specialty">Specialità</label>
+                                    <select id="specialty" class="form-select">
+                                        <option>Ortopedia</option>
+                                        <option>Cardiochirurgia</option>
+                                        <option>Neurochirurgia</option>
+                                        <option>Chirurgia Generale</option>
+                                        <option>Urologia</option>
+                                    </select>
+                                    <label class="form-label mt-2" for="duration">Durata prevista (min)</label>
+                                    <input id="duration" type="number" min="30" step="30" value="60" class="form-control" required />
+                                    <label class="form-label mt-2" for="desiredTime">Ora desiderata</label>
+                                    <input id="desiredTime" type="time" class="form-control" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="description">Descrizione Intervento</label>
+                                    <textarea id="description" rows="2" class="form-control"></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <strong class="form-label">Équipe Chirurgica</strong>
+                                    <div class="row g-2">
+                                        <div class="col-6"> Operatore<select id="chirurgo" class="form-select"><option>Dr. Rossi</option><option>Dr. Bianchi</option></select></div>
+                                        <div class="col-6">Aiuto<select id="aiuto" class="form-select"><option>Dr. Verdi</option><option>Dr. Neri</option></select></div>
+                                        <div class="col-6">Anestesista<select id="anestesista" class="form-select"><option>Dr.ssa Blu</option><option>Dr.ssa Viola</option></select></div>
+                                        <div class="col-6">I. Strumentista<select id="strumentista" class="form-select"><option>Sig.ra Rosa</option><option>Sig.ra Gialla</option></select></div>
+                                        <div class="col-6">
+                                            I. Circolante<select id="circolante" class="form-select"><option>Sig. Marrone</option><option>Sig. Celeste</option></select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                        </div>
+                        <div class="col-12 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Aggiungi</button>
+                        </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Assegnazioni Équipe</h5>
+                        <ul id="teamList" class="list-group list-group-flush"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GRAFICI -->
+        <div class="row g-3 mt-3">
+            <div class="col-md-2"><canvas id="chart1"></canvas></div>
+            <div class="col-md-2"><canvas id="chart2"></canvas></div>
+            <div class="col-md-2"><canvas id="chart3"></canvas></div>
+            <div class="col-md-2"><canvas id="chart4"></canvas></div>
+            <div class="col-md-2"><canvas id="chart5"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Drawer Offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="caseDrawer">
+        <div class="offcanvas-header">
+            <h5 id="caseDrawerLabel">Dettaglio Intervento</h5>
+            <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <p><b>Paziente:</b> <span id="drawerPatient"></span></p>
+            <p><b>Specialità:</b> <span id="drawerSpec"></span></p>
+            <p>
+                <b>Équipe:</b><br>
+                Chirurgo: <span id="eqChirurgo"></span><br>
+                Aiuto: <span id="eqAiuto"></span><br>
+                Anestesista: <span id="eqAnest"></span><br>
+                Strumentista: <span id="eqStrum"></span><br>
+                Circolante: <span id="eqCirc"></span>
+            </p>
+            <p><b>Descrizione:</b> <span id="drawerDesc"></span></p>
+
+            <h6 class="mt-3">Timeline chirurgica</h6>
+            <table class="table table-sm">
+                <thead><tr><th>Fase</th><th>Orario</th><th></th></tr></thead>
+                <tbody id="timelineBody"></tbody>
+            </table>
+            <div class="mb-3">
+                <label for="drawerProcedure" class="form-label">Intervento eseguito</label>
+                <textarea id="drawerProcedure" class="form-control" rows="3" placeholder="Descrivi l'intervento..."></textarea>
+                <button id="btnSaveProcedure" class="btn btn-sm btn-primary mt-2">Salva intervento</button>
+            </div>
+        </div>
+        <div class="offcanvas-footer border-top p-3 d-flex gap-2">
+            <button class="btn btn-success"
+                    id="btnCheckInDrawer"
+                    onclick="window.location.href='CheckListVocale.html'">
+                Check-List
+            </button>
+
+            <button class="btn btn-warning" id="btnTimeOutDrawer">Istologico</button>
+            <button class="btn btn-outline-primary ms-auto" id="btnSavePDFDrawer">Salva PDF</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>document.addEventListener("DOMContentLoaded", () => {
+            // ================= CONFIG =================
+            const salas = [1, 2, 3, 4, 5];
+            const startHour = 8, endHour = 20, slotDuration = 30; // minuti
+            const scheduleBody = document.getElementById("scheduleBody");
+            const dayLabel = document.getElementById("dayLabel");
+            const prevBtn = document.getElementById("prevDay");
+            const nextBtn = document.getElementById("nextDay");
+            const patientQueue = document.getElementById("patientQueue");
+            const form = document.getElementById("surgeryForm");
+
+            // ================= TIME SLOTS =================
+            const timeSlots = [];
+            for (let h = startHour; h < endHour; h++) {
+                timeSlots.push(String(h).padStart(2, "0") + ":00");
+                timeSlots.push(String(h).padStart(2, "0") + ":30");
+            }
+            timeSlots.push(String(endHour).padStart(2, "0") + ":00");
+
+            // ================= SCHEDULE (inizializzato) =================
+            const schedule = {};
+            salas.forEach(s => schedule["sala" + s] = Array(timeSlots.length).fill(null));
+
+            // ================= QUEUE =================
+            const queue = []; // array di case non ancora assegnate
+
+            // ================= GIORNO CORRENTE =================
+            let currentDate = new Date();
+            function updateDayLabel() {
+                if (!dayLabel) return;
+                dayLabel.textContent = currentDate.toLocaleDateString("it-IT", {
+                    weekday: "long", day: "numeric", month: "long", year: "numeric"
+                });
+                renderCases();
+            }
+            if (prevBtn) prevBtn.addEventListener("click", () => {
+                currentDate.setDate(currentDate.getDate() - 1);
+                updateDayLabel();
+            });
+            if (nextBtn) nextBtn.addEventListener("click", () => {
+                currentDate.setDate(currentDate.getDate() + 1);
+                updateDayLabel();
+            });
+
+            // ================= RENDER TABELLA =================
+            function renderTable() {
+                if (!scheduleBody) return;
+                scheduleBody.innerHTML = "";
+                timeSlots.forEach((t, rowIdx) => {
+                    const tr = document.createElement("tr");
+
+                    const th = document.createElement("th");
+                    th.textContent = t;
+                    th.classList.add("time-cell");
+                    tr.appendChild(th);
+
+                    salas.forEach(s => {
+                        const td = document.createElement("td");
+                        td.dataset.sala = s;
+                        td.dataset.row = rowIdx;
+                        td.classList.add("slot");
+                        tr.appendChild(td);
+                    });
+
+                    scheduleBody.appendChild(tr);
+                });
+
+                // Rebind dnd dopo aver (ri)costruito la tabella
+                bindDnD();
+            }
+
+            // ================= RENDER CASI =================
+            function renderCases() {
+                if (!scheduleBody) return;
+                const rows = scheduleBody.querySelectorAll("tr");
+                rows.forEach((tr, row) => {
+                    tr.querySelectorAll("td.slot").forEach(td => {
+                        const sala = td.dataset.sala;
+                        const data = (schedule["sala" + sala] && schedule["sala" + sala][row]) || null;
+                        td.innerHTML = "";
+
+                        if (data) {
+                            // "cont" indica continuità di un intervento iniziato in riga precedente
+                            if (data === "cont") {
+                                td.classList.add("slot-cont");
+                                // Vuoi una UI per "cont"? qui lasciamo cella vuota o con una classe
+                            } else {
+                                const div = document.createElement("div");
+                                div.classList.add("case-block", "case-sala" + sala);
+                                div.innerHTML = `
+                  <strong>${escapeHtml(data.patient.firstName)} ${escapeHtml(data.patient.lastName)}</strong><br>
+                  Codice: ${escapeHtml(data.patient.code || "")}<br>
+                  Nascita: ${escapeHtml(data.patient.dob || "")}
+                `;
+                                // Non rendiamo draggable il blocco (se preferisci abilitare lo spostamento tra sale,
+                                // occorre gestire dragstart qui e rimuovere dai vecchi slot)
+                                div.addEventListener("click", () => window.showDrawer && window.showDrawer(data));
+                                td.appendChild(div);
+                            }
+                        } else {
+                            // cella libera
+                            td.classList.remove("slot-cont");
+                        }
+                    });
+                });
+
+                updateKPI();
+                populateTeam();
+                updateCharts();
+            }
+
+            // ================= RENDER QUEUE =================
+            function renderQueue() {
+                if (!patientQueue) return;
+                patientQueue.innerHTML = "";
+                queue.forEach(p => {
+                    const li = document.createElement("li");
+                    li.className = "list-group-item";
+                    li.textContent = `${p.patient.firstName} ${p.patient.lastName}`;
+                    li.draggable = true;
+                    li.dataset.id = p.id;
+                    // dragstart: passiamo l'id come text/plain (compatibile cross-browser)
+                    li.addEventListener("dragstart", e => {
+                        e.dataTransfer.setData("text/plain", String(p.id));
+                        // opzionale: indicare origine
+                        e.dataTransfer.setData("source", "queue");
+                    });
+                    patientQueue.appendChild(li);
+                });
+            }
+
+    // ================= SUBMIT FORM =================
+    if (form) {
+        form.addEventListener("submit", async e => {
+            e.preventDefault();
+
+            const patient = {
+                firstName: document.getElementById("patientFirstName")?.value.trim() || "",
+                lastName: document.getElementById("patientLastName")?.value.trim() || "",
+                dob: document.getElementById("patientDOB")?.value.trim() || "",
+                code: document.getElementById("patientCode")?.value.trim() || ""
+            };
+            if (!patient.firstName || !patient.lastName) {
+                return alert("Inserisci i dati del paziente");
+            }
+
+            const specialty = document.getElementById("specialty")?.value || "";
+            const duration = parseInt(document.getElementById("duration")?.value, 10);
+            const desired = document.getElementById("desiredTime")?.value || null;
+            const desc = document.getElementById("description")?.value.trim() || "";
+            const equipe = {
+                chirurgo: document.getElementById("chirurgo")?.value || "",
+                aiuto: document.getElementById("aiuto")?.value || "",
+                anestesista: document.getElementById("anestesista")?.value || "",
+                strumentista: document.getElementById("strumentista")?.value || "",
+                circolante: document.getElementById("circolante")?.value || ""
+            };
+
+            try {
+                // 1. Salva paziente
+                const respPaz = await fetch("/api/pazienti", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        nome: patient.firstName,
+                        cognome: patient.lastName,
+                        codice_sanitario: patient.code,
+                        data_nascita: patient.dob
+                    })
+                });
+                const paz = await respPaz.json();
+
+                // 2. Salva intervento
+                const respInt = await fetch("/api/interventi", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        paziente_id: paz.id,
+                        specialita: specialty,
+                        durata: isNaN(duration) ? 60 : duration,
+                        sala: null,
+                        orario_inizio: null,
+                        orario_fine: null
+                    })
+                });
+                const intv = await respInt.json();
+
+                // 3. Salva equipe
+                await fetch("/api/equipe", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        intervento_id: intv.id,
+                        chirurgo: equipe.chirurgo,
+                        aiuto: equipe.aiuto,
+                        anestesista: equipe.anestesista,
+                        strumentista: equipe.strumentista,
+                        circolante: equipe.circolante
+                    })
+                });
+
+                // 4. Ricostruisci newCase per il frontend
+                const newCase = {
+                    id: intv.id,
+                    patient,
+                    specialty,
+                    duration: isNaN(duration) ? 60 : duration,
+                    desc,
+                    equipe,
+                    desiredTime: desired,
+                    sala: null,
+                    timeline: {},
+                    completed: false
+                };
+
+                queue.push(newCase);
+                renderQueue();
+                form.reset();
+
+            } catch (err) {
+                console.error("Errore salvataggio:", err);
+                alert("Errore nel salvataggio nel DB.");
+            }
+        });
+    }
+
+
+            // ================= BIND DRAG & DROP SLOTS =================
+            function bindDnD() {
+                // usiamo query fresh per i td presenti in DOM
+                document.querySelectorAll("#scheduleTable td.slot").forEach(td => {
+                    // evitare doppio attacco: rimuoviamo prima eventuali listener (semplice approccio: cloneNode)
+                    if (td._bound) return; // se già bound, skip
+                    td._bound = true;
+
+                    td.addEventListener("dragover", e => e.preventDefault());
+                    td.addEventListener("dragenter", e => td.classList.add("dragover"));
+                    td.addEventListener("dragleave", e => td.classList.remove("dragover"));
+
+                    td.addEventListener("drop", e => {
+                        e.preventDefault();
+                        td.classList.remove("dragover");
+                        // prendi id dal dataTransfer (text/plain)
+                        const id = e.dataTransfer.getData("text/plain");
+                        if (!id) return;
+
+                        // cerca in queue
+                        const idx = queue.findIndex(p => String(p.id) === String(id));
+                        if (idx === -1) {
+                            // se non è in queue, potremmo gestire il re-spostamento interno (non implementato)
+                            return;
+                        }
+
+                        const c = queue[idx];
+                        // rimuovo dalla queue
+                        queue.splice(idx, 1);
+                        renderQueue();
+
+                        const sala = td.dataset.sala;
+                        const slotsNeeded = Math.max(1, Math.ceil((c.duration || 60) / slotDuration));
+
+                        // calcolo riga di partenza coerente col body
+                        const rows = Array.from(scheduleBody.querySelectorAll("tr"));
+                        const startRow = rows.indexOf(td.parentElement);
+
+                        let placed = false;
+                        for (let i = startRow; i <= timeSlots.length - slotsNeeded; i++) {
+                            let conflict = false;
+                            for (let j = 0; j < slotsNeeded; j++) {
+                                if (schedule["sala" + sala][i + j]) { conflict = true; break; }
+                            }
+                            if (!conflict) {
+                                const caseObj = { ...c, sala: parseInt(sala, 10), startSlot: i };
+                                for (let j = 0; j < slotsNeeded; j++) {
+                                    schedule["sala" + sala][i + j] = (j === 0) ? caseObj : "cont";
+                                }
+                                placed = true;
+                                break;
+                            }
+                        }
+
+                        if (!placed) {
+                            alert("Nessuno slot disponibile in questa sala");
+                            // se vuoi, puoi ripristinare in coda:
+                            queue.unshift(c);
+                            renderQueue();
+                        }
+
+                        renderCases();
+                    });
+                });
+            }
+
+            // ================= KPI / TEAM / CHARTS =================
+            function getAllCases() {
+                const cases = [];
+                salas.forEach(s => {
+                    const arr = schedule["sala" + s] || [];
+                    for (let i = 0; i < arr.length; i++) {
+                        const c = arr[i];
+                        if (c && c !== "cont") cases.push(c);
+                    }
+                });
+                return cases;
+            }
+
+            function updateKPI() {
+                const cases = getAllCases();
+                const saleOcc = new Set(cases.map(c => c.sala)).size;
+                const completati = cases.filter(c => c.completed).length;
+
+                const now = new Date();
+                function parseTimeToDate(t) {
+                    const d = new Date();
+                    const [hh, mm] = (t || "00:00").split(":").map(Number);
+                    d.setHours(hh || 0, mm || 0, 0, 0);
+                    return d;
+                }
+                const ritardi = cases.filter(c =>
+                    c.desiredTime && !c.timeline["Ingresso Sala"] && parseTimeToDate(c.desiredTime) < now
+                ).length;
+
+                const elSale = document.getElementById("kpiSale");
+                const elPaz = document.getElementById("kpiPazienti");
+                const elCompl = document.getElementById("kpiCompletati");
+                const elRit = document.getElementById("kpiRitardo");
+                if (elSale) elSale.textContent = saleOcc + "/" + salas.length;
+                if (elPaz) elPaz.textContent = String(cases.length);
+                if (elCompl) elCompl.textContent = String(completati);
+                if (elRit) elRit.textContent = String(ritardi);
+            }
+
+            function populateTeam() {
+                const ul = document.getElementById("teamList");
+                if (!ul) return;
+                ul.innerHTML = "";
+                getAllCases().forEach(c => {
+                    const li = document.createElement("li");
+                    li.className = "list-group-item d-flex flex-column";
+                    li.innerHTML = `
+            <div><span class="person-icon">👤</span>
+              <strong>${escapeHtml(c.patient.firstName)} ${escapeHtml(c.patient.lastName)}</strong>
+              · <small>Sala ${c.sala}</small>
+            </div>
+            <div class="mt-1">
+              <small>🧑‍⚕️ ${escapeHtml(c.equipe.chirurgo)}, 👩‍⚕️ ${escapeHtml(c.equipe.anestesista)},
+              🧰 ${escapeHtml(c.equipe.strumentista)}, 🔄 ${escapeHtml(c.equipe.circolante)}</small>
+            </div>`;
+                    ul.appendChild(li);
+                });
+            }
+
+            // Charts (Chart.js) - init/update (se Chart disponibile)
+            const charts = {};
+            function salaOccupazione(sala) {
+                const totSlots = timeSlots.length;
+                const used = (schedule["sala" + sala] || []).filter(Boolean).length;
+                return Math.round((used / totSlots) * 100);
+            }
+            function initCharts() {
+                if (typeof Chart === "undefined") return;
+                salas.forEach(s => {
+                    const canvas = document.getElementById("chart" + s);
+                    if (!canvas) return;
+                    const ctx = canvas.getContext("2d");
+                    charts[s] = new Chart(ctx, {
+                        type: "doughnut",
+                        data: { labels: ["Occupato", "Libero"], datasets: [{ data: [0, 100] }] },
+                        options: { plugins: { title: { display: true, text: "Sala " + s } } }
+                    });
+                });
+            }
+            function updateCharts() {
+                if (typeof Chart === "undefined") return;
+                salas.forEach(s => {
+                    const chart = charts[s];
+                    if (!chart) return;
+                    const occ = salaOccupazione(s);
+                    chart.data.datasets[0].data = [occ, 100 - occ];
+                    chart.update();
+                });
+            }
+
+            // ================= DRAWER =================
+            window.showDrawer = function (c) {
+                if (!c) return;
+                const elem = id => document.getElementById(id);
+                if (elem("caseDrawerLabel")) elem("caseDrawerLabel").textContent = `Intervento · Sala ${c.sala}`;
+                if (elem("drawerPatient")) elem("drawerPatient").textContent = `${c.patient.firstName} ${c.patient.lastName} (${c.patient.dob})`;
+                if (elem("drawerSpec")) elem("drawerSpec").textContent = c.specialty;
+                if (elem("eqChirurgo")) elem("eqChirurgo").textContent = c.equipe.chirurgo;
+                if (elem("eqAiuto")) elem("eqAiuto").textContent = c.equipe.aiuto;
+                if (elem("eqAnest")) elem("eqAnest").textContent = c.equipe.anestesista;
+                if (elem("eqStrum")) elem("eqStrum").textContent = c.equipe.strumentista;
+                if (elem("eqCirc")) elem("eqCirc").textContent = c.equipe.circolante;
+                if (elem("drawerDesc")) elem("drawerDesc").textContent = c.desc || "";
+
+                const tbody = elem("timelineBody");
+                if (tbody) {
+                    tbody.innerHTML = "";
+                    const fasi = ["Ingresso Blocco", "Verifica Pre-sala", "Ingresso Sala", "Inizio Anestesia", "Incisione", "Ultimo Punto", "Risveglio", "Uscita Sala"];
+                    fasi.forEach(f => {
+                        const tr = document.createElement("tr");
+                        const td1 = document.createElement("td"); td1.textContent = f;
+                        const td2 = document.createElement("td"); td2.textContent = c.timeline[f] || "—";
+                        const td3 = document.createElement("td");
+                        const btn = document.createElement("button");
+                        btn.className = "btn btn-sm btn-outline-primary";
+                        btn.textContent = "Segna ora";
+                        btn.onclick = () => {
+                            c.timeline[f] = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                            renderCases();
+                            window.showDrawer(c);
+                        };
+                        td3.appendChild(btn);
+                        tr.append(td1, td2, td3);
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                // pulsanti azione drawer
+                const btnCheckIn = document.getElementById("btnCheckInDrawer");
+                const btnTimeOut = document.getElementById("btnTimeOutDrawer");
+                const btnSignOut = document.getElementById("btnSignOutDrawer");
+                const btnSavePDF = document.getElementById("btnSavePDFDrawer");
+
+                if (btnCheckIn) btnCheckIn.onclick = () => {
+                    // redirect alla pagina CheckListVocale.html
+                    window.location.href = "CheckListVocale.html";
+                };
+
+                if (btnTimeOut) btnTimeOut.onclick = () => {
+                    // redirect alla pagina istologico.html
+                    window.location.href = "istologico.html";
+                };
+
+                if (btnSignOut) btnSignOut.onclick = () => {
+                    c.signOut = new Date().toLocaleTimeString("it-IT");
+                    c.completed = true;
+                    alert("Sign-Out registrato: " + c.signOut);
+                    renderCases();
+                    window.showDrawer(c);
+                };
+
+                if (btnSavePDF) btnSavePDF.onclick = () => {
+                    const { jsPDF } = window.jspdf || {};
+                    if (!jsPDF) return alert("jsPDF non caricato.");
+                    const doc = new jsPDF();
+                    doc.text("Registro Chirurgico", 10, 10);
+                    doc.text(`Paziente: ${c.patient.firstName} ${c.patient.lastName}`, 10, 20);
+                    doc.text(`Specialità: ${c.specialty}`, 10, 28);
+                    doc.text(`Intervento programmato: ${c.desc || ""}`, 10, 36);
+                    let y = 46;
+                    doc.text("Équipe:", 10, y);
+                    doc.text(`- Chirurgo: ${c.equipe.chirurgo}`, 15, y + 8);
+                    doc.text(`- Aiuto: ${c.equipe.aiuto}`, 15, y + 15);
+                    doc.text(`- Anestesista: ${c.equipe.anestesista}`, 15, y + 22);
+                    doc.text(`- Strumentista: ${c.equipe.strumentista}`, 15, y + 29);
+                    doc.text(`- Circolante: ${c.equipe.circolante}`, 15, y + 36);
+                    y += 46;
+                    doc.text("Timeline:", 10, y);
+                    y += 8;
+                    Object.entries(c.timeline || {}).forEach(([ph, t]) => {
+                        doc.text(`- ${ph}: ${t}`, 15, y);
+                        y += 7;
+                    });
+                    if (c.procedure && c.procedure.trim() !== "") {
+                        y += 5;
+                        doc.text("Intervento eseguito:", 10, y);
+                        const lines = doc.splitTextToSize(c.procedure, 180);
+                        y += 8;
+                        doc.text(lines, 15, y);
+                    }
+                    doc.save(`Registro_${c.patient.lastName || "paziente"}.pdf`);
+                };
+
+                // mostra offcanvas (Bootstrap)
+                const off = document.getElementById("caseDrawer");
+                if (off && typeof bootstrap !== "undefined") {
+                    const offcanvas = new bootstrap.Offcanvas(off);
+                    offcanvas.show();
+                }
+            };
+
+            // ================= HELPERS =================
+            function escapeHtml(str) {
+                if (!str) return "";
+                return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+            }
+
+            // ================= AVVIO INIZIALIZZAZIONE =================
+            renderTable();
+            renderCases();
+            renderQueue();
+            initCharts();
+            updateCharts();
+            updateDayLabel();
+        });</script>
+
+
+    <div align="center"><footer>Legal Copyright 2025 · Stefano Pepe</footer></div>
+</body>
+</html>
